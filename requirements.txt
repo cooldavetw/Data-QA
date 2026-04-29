@@ -1,0 +1,7 @@
+pydantic-ai-slim[openai]>=0.0.14
+streamlit==1.52.0
+openai>=2.0.0
+requests>=2.31
+pandas==2.3.2
+duckdb==1.4.4
+matplotlib>=3.9
