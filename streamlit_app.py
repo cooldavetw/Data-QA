@@ -16,6 +16,9 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 SEGMA_ACCESS_URL = os.getenv("SEGMA_ACCESS_URL", "http://backend:3040").rstrip("/")
 DEFAULT_ACTION_DATASET_ID = os.getenv("ACTION_DATASET_ID", "{ACTION_DATASET_ID}")
+LLM_API_KEY = os.getenv("LLM_API_KEY", os.getenv("OPENAI_API_KEY", "abcd"))
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", os.getenv("OPENAI_BASE_URL", "http://llm-proxy:4000/v1"))
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma-4")
 
 
 def config_value(value: str) -> str:
@@ -111,9 +114,32 @@ if st.session_state.get("selected_action_dataset_id") != new_action_dataset_id:
 
 action_dataset_id = st.session_state.selected_action_dataset_id
 
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+st.sidebar.header("LLM 設定")
+llm_api_key = st.sidebar.text_input(
+    "LLM API key",
+    type="password",
+    help="API key for completions.",
+    value=LLM_API_KEY,
+)
+llm_base_url = st.sidebar.text_input(
+    "LLM base URL",
+    value=LLM_BASE_URL,
+    help="Base URL for OpenAI-compatible LLM endpoint.",
+)
+llm_model = st.sidebar.text_input(
+    "LLM model name",
+    value=LLM_MODEL,
+    help="Model name for answering questions.",
+)
+
+if not llm_api_key:
+    st.info("Please add your LLM API key to continue.")
+    st.stop()
+if not llm_base_url.strip():
+    st.info("Please add your OpenAI-compatible LLM base URL to continue.")
+    st.stop()
+if not llm_model.strip():
+    st.info("Please add your LLM model name to continue.")
     st.stop()
 
 
@@ -176,8 +202,8 @@ class AnalystAgentDeps:
         return ref
 
 model = OpenAIChatModel(
-        "gpt-3.5-turbo",  # you can swap to another OpenAI chat model name
-        provider=OpenAIProvider(api_key=openai_api_key),
+        llm_model,
+        provider=OpenAIProvider(api_key=llm_api_key, base_url=llm_base_url),
     )
 analyst_agent = Agent(
     model,
