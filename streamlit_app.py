@@ -14,7 +14,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider 
 
 
-SEGMA_ACCESS_URL = os.getenv("SEGMA_ACCESS_URL", "{SEGMA_ACCESS_URL}").rstrip("/")
+SEGMA_ACCESS_URL = os.getenv("SEGMA_ACCESS_URL", "http://backend:3040").rstrip("/")
 DEFAULT_ACTION_DATASET_ID = os.getenv("ACTION_DATASET_ID", "{ACTION_DATASET_ID}")
 
 
