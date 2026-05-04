@@ -71,7 +71,6 @@ def action_dataset_label(dataset: dict[str, Any]) -> str:
     return f"{name} (ID: {dataset['id']})"
 
 
-@st.cache_data(show_spinner=True)
 def fetch_action_datasets(api_token: str) -> list[dict[str, Any]]:
     headers = {"Authorization": f"bearer {api_token}"}
     url = f"{SEGMA_ACCESS_URL}/api/v1/action_datasets"
