@@ -7,7 +7,8 @@ from typing import Any
 import traceback
 import duckdb
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 import os
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -188,13 +189,18 @@ class AnalystAgentDeps:
             )
         return self.output[ref]
 
-    def store_visualization(self, title: str, image_bytes: bytes, summary: str = "") -> str:
+    def store_visualization(
+        self,
+        title: str,
+        figure: go.Figure,
+        summary: str = "",
+    ) -> str:
         ref = f"Viz[{len(self.visualizations) + 1}]"
         self.visualizations.append(
             {
                 "ref": ref,
                 "title": title,
-                "image_bytes": image_bytes,
+                "figure": figure,
                 "summary": summary,
             }
         )
@@ -212,7 +218,8 @@ analyst_agent = Agent(
         "Use DuckDB SQL via the provided tools when SQL is the best fit. "
         "Use the Python analysis tool when you need richer pandas analysis, custom calculations, or charts. "
         "If the user asks for a chart, plot, histogram, distribution, or visualization, you must use `run_python_analysis` "
-        "to generate the figure and call `save_chart(...)`. "
+        "to generate a Plotly figure and call `save_chart(...)`. "
+        "Prefer Plotly Express (`px`) or Plotly Graph Objects (`go`) for visualizations. "
         "Do not say a visualization was created unless the tool returned a `Viz[n]` reference. "
         "In DuckDB SQL, the table name for the fixed dataset is `dataset`. "
         "In DuckDB SQL, you must enclose column names that contain spaces in double quotes instead of using underscores to replace spaces."
@@ -258,11 +265,13 @@ def run_python_analysis(ctx: RunContext[AnalystAgentDeps], code: str) -> str:
     - `dataset`: a copy of the fixed pandas DataFrame
     - `outputs`: dict of previously stored query results keyed by Out[n]
     - `pd`: pandas
-    - `plt`: matplotlib.pyplot
+    - `px`: plotly.express
+    - `go`: plotly.graph_objects
     - `store_dataframe(value)`: store a DataFrame result and return an Out[n] reference
-    - `save_chart(title, fig=None, summary="")`: save a matplotlib figure and return a Viz[n] reference
+    - `save_chart(title, fig, summary="")`: save a Plotly figure and return a Viz[n] reference
 
-    For any visualization request, create a matplotlib figure and call `save_chart(...)`.
+    For any visualization request, create a Plotly figure with `px` or `go`
+    and call `save_chart(...)` with the figure.
     If the column is categorical, prefer a bar chart of value counts over a histogram.
     Set a `result` variable if you want the tool to include a final scalar, dict, or DataFrame summary.
     """
@@ -274,24 +283,18 @@ def run_python_analysis(ctx: RunContext[AnalystAgentDeps], code: str) -> str:
             raise ValueError("store_dataframe expects a pandas DataFrame")
         return ctx.deps.store(value)
 
-    def save_chart(title: str, fig: Any = None, summary: str = "") -> str:
-        chart = fig if fig is not None else plt.gcf()
-        if chart is None:
-            raise ValueError("No matplotlib figure is available to save")
-
-        buffer = BytesIO()
-        chart.savefig(buffer, format="png", bbox_inches="tight")
-        buffer.seek(0)
-        ref = ctx.deps.store_visualization(title, buffer.getvalue(), summary)
-        plt.close(chart)
-        return ref
+    def save_chart(title: str, fig: go.Figure, summary: str = "") -> str:
+        if not isinstance(fig, go.Figure):
+            raise ValueError("save_chart expects a Plotly figure created with `px` or `go`")
+        return ctx.deps.store_visualization(title, fig, summary)
 
     exec_globals = {
         "__builtins__": __builtins__,
         "dataset": ctx.deps.dataset_df.copy(),
         "outputs": {key: value.copy() for key, value in ctx.deps.output.items()},
         "pd": pd,
-        "plt": plt,
+        "px": px,
+        "go": go,
         "store_dataframe": store_dataframe,
         "save_chart": save_chart,
     }
@@ -302,7 +305,6 @@ def run_python_analysis(ctx: RunContext[AnalystAgentDeps], code: str) -> str:
         with redirect_stdout(stdout_buffer):  # type: ignore[arg-type]
             exec(code, exec_globals, exec_locals)
     except Exception as exc:
-        plt.close("all")
         raise ModelRetry(
             "Python analysis failed:\n"
             f"{type(exc).__name__}: {exc}\n"
@@ -340,7 +342,8 @@ def render_visualizations(visualizations: list[dict[str, Any]]) -> None:
         caption = visualization["title"]
         if visualization["summary"]:
             caption = f"{caption} - {visualization['summary']}"
-        st.image(visualization["image_bytes"], caption=f"{visualization['ref']}: {caption}")
+        st.caption(f"{visualization['ref']}: {caption}")
+        st.plotly_chart(visualization["figure"], width="stretch")
 
 
 if "analyst_outputs" not in st.session_state:
